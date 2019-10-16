@@ -95,6 +95,6 @@ def main(image_id):
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='visualize annotation for image.')
-    parser.add_argument('-imageID', dest='imageID', default='042',help='input imageID, e.g., 001')
+    parser.add_argument('-imageID', dest='imageID', default='001',help='input imageID, e.g., 001')
     args = parser.parse_args()
     main(args.imageID)
