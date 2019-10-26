@@ -1,4 +1,4 @@
-from utils import pyramid
+# from utils import pyramid
 from utils import sliding_window
 import argparse
 import time
@@ -8,72 +8,39 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from sklearn.svm import LinearSVC, SVC
 from utils import load_image_gray
-import cyvlfeat as vlfeat
 import pickle
 import math
 import xml.dom.minidom
 import random
 
-def build_vocabulary(image_list, vocab_size):
-    dim = 128  # length of the SIFT descriptors that you are going to compute.
-    vocab = np.zeros((vocab_size, dim))
-    total_SIFT_features = np.zeros((20 * len(image_list), dim))
+from skimage import exposure
+from skimage import feature
 
-    imags = {}
-    train_image_set = set()
 
-    for i in range(len(image_list)):
-        image_info = image_list[i]
-        train_image_set.add(image_info['index'])
-
-    for index in train_image_set:
-        image_path = 'datasets/JPEGImages/' + index + '.jpg'
-        img = load_image_gray(image_path)
-        imags[index] = img
-        print(index + "FINISHIED")
-
-    print("Arrive Here")
-    for i in range(len(image_list)):
-        image_info = image_list[i]
-        img = imags[image_info['index']]
-        img = img[int(image_info['ymin']):int(image_info['ymax']), int(image_info['xmin']):int(image_info['xmax'])]
-        frames, descriptors = vlfeat.sift.dsift(img, step=4, fast=True)
-        idx = np.random.randint(descriptors.shape[0], size=20)
-        total_SIFT_features[i * 20:(i + 1) * 20] = descriptors[idx, :]
-
-    vocab = vlfeat.kmeans.kmeans(total_SIFT_features, vocab_size)
-    return vocab
-
-def bags_of_sifts(image_list, vocab):
-    dim = vocab.shape[0]
-    feats = np.zeros(shape=(len(image_list), dim))
-    imags = {}
-    train_image_set = set()
-
-    for i in range(len(image_list)):
-        image_info = image_list[i]
-        train_image_set.add(image_info['index'])
-
-    for index in train_image_set:
-        image_path = 'datasets/JPEGImages/' + index + '.jpg'
-        img = load_image_gray(image_path)
-        imags[index] = img
-        print(index + "FINISHIED")
-
+def build_bag_of_hog(image_dict):
+    
     print("Start Feats")
-    for i in range(len(image_list)):
-        image_info = image_list[i]
-        img = imags[image_info['index']]
-        img = img[int(image_info['ymin']):int(image_info['ymax']), int(image_info['xmin']):int(image_info['xmax'])]
-        frames, descriptors = vlfeat.sift.dsift(img, step=4, fast=True)
-        distance = cdist(descriptors, vocab)
-        min_index = np.unravel_index(np.argmin(distance, axis=1), distance.shape)[1]
-        histogram, bin_edges = np.histogram(min_index, bins=np.arange(dim+1))
-        histogram = histogram / np.linalg.norm(histogram)
+    feats = []
+    print(len(image_dict))
+    for image in image_dict:
+        # print(image)
+        image_path = 'datasets/JPEGImages/' + image['index'] + '.jpg'
+        img = load_image_gray(image_path)
+        # img = cv2.imread(image_path)
+        # img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        # images[index] = img
 
-        feats[i] = histogram
+        img = img[int(image['ymin']):int(image['ymax']), int(image['xmin']):int(image['xmax'])]
+        img = cv2.resize(img, (32, 32), interpolation = cv2.INTER_AREA)
+
+        descriptor = feature.hog(img, orientations=9, pixels_per_cell=(8, 8),
+                                    cells_per_block=(2, 2), transform_sqrt=True, block_norm="L1")
+        descriptor = descriptor.flatten()
+        feats.append(descriptor)
+        print(image['index'] + ' ' + 'Done')
 
     return feats
+
 
 if __name__ == "__main__":
     train_lists_filename = 'datasets/ImageSets/train.txt'
@@ -121,30 +88,21 @@ if __name__ == "__main__":
                 time -= 1
 
     train_tag_labels = [image['name'] for image in train_image_list]
+    print(len(train_image_list))
     vocab_filename = 'vocab.pkl'
     train_feats_filename = 'train_feats.pkl'
     train_tag_filename = 'train_tag.pkl'
-    if not osp.isfile(vocab_filename):
-        print('No existing visual word vocabulary found. Computing one from training images')
-        vocab_size = 200  # Larger values will work better (to a point) but be slower to compute
-        vocab = build_vocabulary(train_image_list, vocab_size)
+    images = {}
+    train_image_set = set()
 
-        with open(vocab_filename, 'wb') as f:
-            pickle.dump(vocab, f)
-            print('{:s} saved'.format(vocab_filename))
-    else:
-        with open(vocab_filename, 'rb') as f:
-            vocab = pickle.load(f)
-
-    if not osp.isfile(train_feats_filename):
-        print('No existing visual training set feats found. Computing one from training images')
-        with open(train_tag_filename, 'wb') as f:
-            pickle.dump(train_tag_labels, f)
-            print('{:s} saved'.format(train_tag_filename))
-
-        train_image_feats = bags_of_sifts(train_image_list, vocab)
-        with open(train_feats_filename, 'wb') as f:
-            pickle.dump(train_image_feats, f)
-            print('{:s} saved'.format(train_feats_filename))
+    features = build_bag_of_hog(train_image_list)
+    features = np.array(features)
+    print(features.shape)
+    clf = SVC(kernel='rbf', gamma='scale', decision_function_shape='ovc')
+    clf.fit(features, train_tag_labels)
+    print(type(clf))
+    filename = 'finalized_model.pkl'
+    pickle.dump(clf, open(filename, 'wb'))
+    print('model saved!')
 
 
