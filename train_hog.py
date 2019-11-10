@@ -61,7 +61,7 @@ if __name__ == "__main__":
     features = build_bag_of_hog(train_image_list)
     features = np.array(features)
     print(features.shape)
-    clf = SVC(kernel='rbf', gamma='scale', decision_function_shape='ovc')
+    clf = SVC(kernel='rbf', gamma='scale', decision_function_shape='ovc', probability=True)
     clf.fit(features, train_image_labels)
     print(type(clf))
     filename = 'finalized_model.pkl'

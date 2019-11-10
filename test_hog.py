@@ -33,6 +33,9 @@ if __name__ == "__main__":
         # cv2.waitKey()
 
         test_label = model.predict([test_image_feat])
+        test_prob = model.predict_proba([test_image_feat])
+        print('Neg: %0.2f, Waldo : %0.2f, Wendy: %0.2f, Wizard: %0.2f' % (test_prob[0][0], test_prob[0][1],
+                                                                          test_prob[0][2], test_prob[0][3]))
         # print(test_label, y, x)
         if test_label == 'waldo':
             # print(y)
